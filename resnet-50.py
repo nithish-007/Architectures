@@ -1,16 +1,21 @@
 import torch 
 from torch import nn
 
-class block(nn.Module):
+####### class for the bottleneck (Residual Network) ################
+class bottle_neck(nn.Module):
     def __init__(self, in_channels, out_channels, identity_downsample=None, stride=1):
-        super(block, self).__init__()
+        super(bottle_neck, self).__init__()
         self.expansion = 4
+        ############ block ######################
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
         self.bn1 = nn.BatchNorm2d(out_channels)
+
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=stride, padding=1)
         self.bn2 = nn.BatchNorm2d(out_channels)
+
         self.conv3 = nn.Conv2d(out_channels, out_channels*self.expansion, kernel_size=1, stride=1, padding=0)
         self.bn3 = nn.BatchNorm2d(out_channels*self.expansion)
+        ############ block #########################
         self.relu = nn.ReLU()
         self.identity_downsample = identity_downsample
     
@@ -35,7 +40,7 @@ class block(nn.Module):
         return x
 
 class ResNet(nn.Module): #[3, 4, 6, 3]
-    def __init__(self, block, layers, image_channels, num_classes):
+    def __init__(self, bottle_neck, layers, image_channels, num_classes):
        super(ResNet, self).__init__()
        self.in_channels = 64
        self.conv1 = nn.Conv2d(image_channels, 64, kernel_size=7, stride=2, padding=3)
@@ -44,10 +49,10 @@ class ResNet(nn.Module): #[3, 4, 6, 3]
        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
        # ResNet Layer
-       self.layer1 = self._make_layer(block, layers[0], out_channels=64, stride=1)
-       self.layer2 = self._make_layer(block, layers[1], out_channels=128, stride=2)
-       self.layer3 = self._make_layer(block, layers[2], out_channels=256, stride=2)
-       self.layer4 = self._make_layer(block, layers[3], out_channels=512, stride=2)
+       self.layer1 = self._make_layer(bottle_neck, layers[0], out_channels=64, stride=1)
+       self.layer2 = self._make_layer(bottle_neck, layers[1], out_channels=128, stride=2)
+       self.layer3 = self._make_layer(bottle_neck, layers[2], out_channels=256, stride=2)
+       self.layer4 = self._make_layer(bottle_neck, layers[3], out_channels=512, stride=2)
 
        self.avgpool = nn.AdaptiveAvgPool2d((1,1))
        self.fc = nn.Linear(512*4, num_classes)
@@ -68,7 +73,7 @@ class ResNet(nn.Module): #[3, 4, 6, 3]
         x = self.fc(x)
         return x
 
-    def _make_layer(self, block, num_residual_blocks, out_channels, stride):
+    def _make_layer(self, bottle_neck, num_residual_blocks, out_channels, stride):
         identity_downsample = None
         layers = []
 
@@ -76,22 +81,22 @@ class ResNet(nn.Module): #[3, 4, 6, 3]
            identity_downsample = nn.Sequential(nn.Conv2d(self.in_channels,
                                     out_channels*4, kernel_size=1, stride=stride),
                                 nn.BatchNorm2d(out_channels*4))
-        layers.append(block(self.in_channels, out_channels, identity_downsample, stride))
+        layers.append(bottle_neck(self.in_channels, out_channels, identity_downsample, stride))
         self.in_channels = out_channels*4
 
         for i in range(num_residual_blocks -1):
-            layers.append(block(self.in_channels, out_channels)) #256 -> 64, 64*4 (256) again
+            layers.append(bottle_neck(self.in_channels, out_channels)) #256 -> 64, 64*4 (256) again
 
         return nn.Sequential(*layers)
                                 
 def ResNet50(img_channels=3, num_classes=1000):
-    return ResNet(block, [3, 4, 6, 3], img_channels, num_classes)
+    return ResNet(bottle_neck, [3, 4, 6, 3], img_channels, num_classes)
 
 def ResNet101(img_channels=3, num_classes=1000):
-    return ResNet(block, [3, 4, 23, 3], img_channels, num_classes)
+    return ResNet(bottle_neck, [3, 4, 23, 3], img_channels, num_classes)
 
 def ResNet152(img_channels=3, num_classes=1000):
-    return ResNet(block, [3, 4, 36, 3], img_channels, num_classes)
+    return ResNet(bottle_neck, [3, 4, 36, 3], img_channels, num_classes)
 
 def test():
     net = ResNet50()
